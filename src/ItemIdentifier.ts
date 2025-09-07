@@ -329,7 +329,11 @@ export default class ItemIdentifier extends Plugin {
       if (mode === "Bank+Bag(Gear Only)" && (inInventory || inShop)) {
         allowed = new Set(["dark", "jewelry", "potion"]);
       }
-      const tag = this.deriveTag(name, allowed);
+      let tag = this.deriveTag(name, allowed);
+      // Fallback: if in Gear Only and jewelry allowed AND enabled, try a robust jewelry derivation
+      if (!tag && allowed && allowed.has("jewelry") && (this.settings as any).showJewelry?.value) {
+        tag = this.deriveJewelryTag(name);
+      }
       if (!tag) return this.removeBadge(cell);
 
       const host = this.getTagHost(cell);
@@ -553,15 +557,37 @@ export default class ItemIdentifier extends Plugin {
     // 6) Jewelry
     if ((this as any).settings?.showJewelry?.value) {
       if (allowed && !allowed.has("jewelry")) return null;
+      // Exclude crafting moulds
+      if (/\bnecklace\s+mould\b/i.test(n)) return null;
       // Monk's Necklace outlier
-      if (/monk'?s\s+necklace$/i.test(n)) return 'Monk';
-      const jewMatch = /^(silver|gold)\s+(.+?)\s+(necklace)$/i.exec(n);
-      if (jewMatch) {
-        const metal = jewMatch[1].toLowerCase();
-        const mid = jewMatch[2].trim();
-        const suf = metal === 'silver' ? '(s)' : '(g)';
-        const gemAbbr = GEM_MAP[mid.toLowerCase()] || capitalize3(mid);
-        return `${gemAbbr} ${suf}`;
+      if (/monk'?s\s+necklace\b/i.test(n)) return 'Monk';
+      const lowerName = n.toLowerCase();
+      if (/\bnecklace\b/i.test(n)) {
+        // Prefer anchored match first
+        const m = /^(?:(gold)\s+)?(.+?)\s+necklace(?:\s*\(.*\))?$/i.exec(n);
+        let gemWord = '';
+        let isGold = false;
+        if (m) {
+          isGold = !!m[1];
+          gemWord = m[2].trim();
+        } else {
+          // Fallback: detect metal anywhere, then take the word before 'necklace'
+          isGold = /\bgold\b/i.test(n);
+          const pre = /([A-Za-z][A-Za-z\-']+)\s+necklace\b/i.exec(n);
+          gemWord = (pre?.[1] || '').trim();
+        }
+        // Resolve gem abbreviation
+        let abbr = '';
+        if (gemWord) {
+          abbr = GEM_MAP[gemWord.toLowerCase()] || capitalize3(gemWord);
+        } else {
+          // Search any known gem name within the string
+          const keys = Object.keys(GEM_MAP).sort((a,b)=>b.length-a.length);
+          const found = keys.find(k => lowerName.includes(k));
+          abbr = found ? GEM_MAP[found] : capitalize3(n);
+        }
+        const suf = isGold ? '(g)' : '(s)';
+        return `${abbr} ${suf}`;
       }
     }
 
@@ -612,6 +638,39 @@ export default class ItemIdentifier extends Plugin {
         }
       }
     } catch {}
+  }
+
+  // Additional robust jewelry derivation used as a fallback in Gear Only
+  private deriveJewelryTag(name: string): string | null {
+    const n = name.trim();
+    if (/\bnecklace\s+mould\b/i.test(n)) return null;
+    if (/monk'?s\s+necklace\b/i.test(n)) return 'Monk';
+    if (!/\bnecklace\b/i.test(n)) return null;
+    const m = /^(?:(gold)\s+)?(.+?)\s+necklace(?:\s*\(.*\))?$/i.exec(n);
+    let isGold = false;
+    let mid = '';
+    if (m) {
+      isGold = !!m[1];
+      mid = m[2].trim();
+    } else {
+      isGold = /\bgold\b/i.test(n);
+      const pre = /([A-Za-z][A-Za-z\-']+)\s+necklace\b/i.exec(n);
+      mid = (pre?.[1] || '').trim();
+    }
+    const GEM_MAP: Record<string, string> = {
+      amethyst: 'Am', sapphire: 'Sap', emerald: 'Em', ruby: 'Ruby', citrine: 'Cit', diamond: 'Dia', carbonado: 'Carb',
+    };
+    let abbr = '';
+    if (mid) {
+      abbr = GEM_MAP[mid.toLowerCase()] || capitalize3(mid);
+    } else {
+      const lower = n.toLowerCase();
+      const keys = Object.keys(GEM_MAP).sort((a,b)=>b.length-a.length);
+      const found = keys.find(k => lower.includes(k));
+      abbr = found ? GEM_MAP[found] : capitalize3(n);
+    }
+    const suf = isGold ? '(g)' : '(s)';
+    return `${abbr} ${suf}`;
   }
 }
 

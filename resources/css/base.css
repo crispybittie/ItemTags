@@ -10,7 +10,7 @@
   border-radius: .25rem;
   background-color: var(--hs-color-inventory-item-amount-bg);
   color: var(--hs-color-inventory-item-amount-fg, #ff0);
-  text-transform: capitalize;
+  white-space: nowrap;
   text-shadow: 0 0 1px rgba(0,0,0,0.7);
   z-index: 1;
 }

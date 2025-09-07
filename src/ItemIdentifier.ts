@@ -38,70 +38,89 @@ export default class ItemIdentifier extends Plugin {
     } as any;
 
     this.settings.showRoots = {
-      text: "Show Root tags",
+      text: "Roots",
+      description: "Show Root tags",
       type: SettingsTypes.checkbox,
       value: true,
       callback: () => this.rescanSoon(),
     } as any;
 
     this.settings.showPotions = {
-      text: "Show Potion tags",
+      text: "Potions",
+      description: "Show Potion tags",
       type: SettingsTypes.checkbox,
       value: true,
       callback: () => this.rescanSoon(),
     } as any;
 
     this.settings.showLogs = {
-      text: "Show Log tags",
+      text: "Logs",
+      description: "Show Log tags",
       type: SettingsTypes.checkbox,
       value: true,
       callback: () => this.rescanSoon(),
     } as any;
 
     this.settings.showScrolls = {
-      text: "Show Scroll tags",
+      text: "Scrolls",
+      description: "Show Scroll tags",
+      type: SettingsTypes.checkbox,
+      value: true,
+      callback: () => this.rescanSoon(),
+    } as any;
+
+    // Place Ignore Magic directly after Scrolls
+    this.settings.ignoreMagicalScrolls = {
+      text: "Ignore Magic",
+      description: "Don't show overlay on Magical Scrolls",
       type: SettingsTypes.checkbox,
       value: true,
       callback: () => this.rescanSoon(),
     } as any;
 
     this.settings.showBows = {
-      text: "Show Bow tags",
+      text: "Bows",
+      description: "Show Bow tags",
       type: SettingsTypes.checkbox,
       value: true,
       callback: () => this.rescanSoon(),
     } as any;
 
     this.settings.showJewelry = {
-      text: "Show Jewelry tags",
+      text: "Jewelry",
+      description: "Show Jewelry tags",
       type: SettingsTypes.checkbox,
       value: true,
       callback: () => this.rescanSoon(),
     } as any;
 
     this.settings.showGems = {
-      text: "Show Gem tags",
-      type: SettingsTypes.checkbox,
-      value: true,
-      callback: () => this.rescanSoon(),
-    } as any;
-
-    this.settings.ignoreMagicalScrolls = {
-      text: "Ignore Magical Scrolls",
+      text: "Gems",
+      description: "Show Gem tags",
       type: SettingsTypes.checkbox,
       value: true,
       callback: () => this.rescanSoon(),
     } as any;
 
     this.settings.showOres = {
-      text: "Show Ore tags",
+      text: "Ores",
+      description: "Show Ore tags",
       type: SettingsTypes.checkbox,
       value: true,
       callback: () => this.rescanSoon(),
     } as any;
 
     this.settings.showBars = {
-      text: "Show Bar tags",
+      text: "Bars",
+      description: "Show Bar tags",
+      type: SettingsTypes.checkbox,
+      value: true,
+      callback: () => this.rescanSoon(),
+    } as any;
+
+    this.settings.showDarkItems = {
+      text: "Dark Items",
+      description: "Display overlay for items that are difficult to see on dark mode, like Coronium Gear and Damogui's Staff",
       type: SettingsTypes.checkbox,
       value: true,
       callback: () => this.rescanSoon(),
@@ -373,6 +392,28 @@ export default class ItemIdentifier extends Plugin {
   private deriveTag(name: string): string | null {
     const n = name.trim();
 
+    // 0) Dark items – exact name overrides
+    if ((this as any).settings?.showDarkItems?.value) {
+      const DARK: Record<string, string> = {
+        "coronium chainmail body": "C Chain",
+        "coronium chestplate": "C Plate",
+        "coronium platelegs": "C Legs",
+        "coronium helm": "C Helm",
+        "coronium full helm": "C Fhelm",
+        "coronium gloves": "C Glove",
+        "coronium hatchet": "C Axe",
+        "coronium pickaxe": "C Pick",
+        "coronium scimitar": "C Scim",
+        "coronium longsword": "C Long",
+        "coronium battleaxe": "C Baxe",
+        "bandit mask": "B Mask",
+        "black leather gloves": "B Glove",
+        "damogui's staff": "Damo",
+      };
+      const hit = DARK[n.toLowerCase()];
+      if (hit) return hit;
+    }
+
     // Manual overrides by category
     const MANUAL: Record<string, Record<string, string>> = {
       logs: { reg: 'Norm', lucky: 'Luck', pine: 'Pine', deadwood: 'Dead', cherry: 'Cher', palm: 'Palm' },
@@ -425,16 +466,16 @@ export default class ItemIdentifier extends Plugin {
       return applyManualFor('root', prefix) || capitalize3(prefix);
     }
 
-    // 4) Scrolls
-    const scrollsMatch = /^(.*?)\s*scrolls$/i.exec(n);
-    if (scrollsMatch && this.settings.showScrolls.value) {
-      const prefix = scrollsMatch[1].trim();
-      // Magical scrolls list
+    // 4) Scroll (singular)
+    const scrollMatch = /^(.*?)\s*scroll$/i.exec(n);
+    if (scrollMatch && this.settings.showScrolls.value) {
+      const prefix = scrollMatch[1].trim();
+      // Magical scrolls list (Fire, Water, etc.)
       if (SCROLL_MAGICAL[prefix.toLowerCase()]) {
-        if ((this as any).settings?.ignoreMagicalScrolls?.value) return null;
+        if (this.settings.ignoreMagicalScrolls?.value) return null;
         return SCROLL_MAGICAL[prefix.toLowerCase()];
       }
-      // Non-magical scrolls follow log-like rules
+      // Non-magical scrolls follow log-like rules and manual overrides
       if (!prefix) return 'Norm';
       return applyManualFor('scroll', prefix) || capitalize3(prefix);
     }
@@ -456,13 +497,13 @@ export default class ItemIdentifier extends Plugin {
       const nugget = /^(silver|gold)\s+nugget$/i.exec(n);
       if (nugget) {
         const metal = nugget[1].toLowerCase();
-        return metal === 'gold' ? 'Gold' : capitalize3('Silver');
+        return metal === 'gold' ? 'Gold' : 'Silv';
       }
       const oreMatch = /^(.+?)\s+ore$/i.exec(n);
       if (oreMatch) {
         const t = oreMatch[1].trim();
         const oreMap: Record<string, string> = {
-          coal: 'Coal', iron: 'Iron', coronium: 'Coro', celadium: 'Cela', gold: 'Gold',
+          coal: 'Coal', iron: 'Iron', coronium: 'Coro', celadium: 'Cela', gold: 'Gold', silver: 'Silv',
         };
         return oreMap[t.toLowerCase()] || capitalize3(t);
       }
@@ -475,7 +516,7 @@ export default class ItemIdentifier extends Plugin {
       if (barMatch) {
         const t = barMatch[1].trim();
         const barMap: Record<string, string> = {
-          iron: 'Iron', coronium: 'Coro', celadium: 'Cela', gold: 'Gold',
+          iron: 'Iron', coronium: 'Coro', celadium: 'Cela', gold: 'Gold', silver: 'Silv',
         };
         return barMap[t.toLowerCase()] || capitalize3(t);
       }
@@ -511,8 +552,15 @@ export default class ItemIdentifier extends Plugin {
   }
 
   private formatTag(tag: string): string {
-    // Capitalize words but keep numbers/symbols as-is
-    return tag.replace(/\b([a-z])(\w*)/gi, (_, a: string, b: string) => a.toUpperCase() + b.toLowerCase());
+    // Capitalize space-separated tokens, but do not alter tokens that start with '('
+    return tag
+      .split(/\s+/)
+      .map((tok) => {
+        if (!tok) return tok;
+        if (tok.startsWith('(')) return tok; // keep (u)/(s)/(g)
+        return tok.charAt(0).toUpperCase() + tok.slice(1).toLowerCase();
+      })
+      .join(' ');
   }
 
   private syncBadgeTypography(host: HTMLElement, badge: HTMLElement) {

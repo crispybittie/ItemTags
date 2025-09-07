@@ -1,16 +1,16 @@
 /* Styles for Item Identifier plugin */
 /* Scope to our badges only to avoid affecting other tags */
 .hs-inventory-item__tag[data-hs-tag-overlay] {
-  background-color: var(--hs-color-inventory-item-amount-bg);
-  border-radius: .25rem;
-  left: .0625rem;
-  padding: 0 .125rem;
   position: absolute;
-  text-align: right;
-  bottom: .0625rem; /* swapped from top */
-  font-size: 10px;
-  line-height: 1.1;
+  left: .0625rem;
+  bottom: .0625rem; /* bottom-left, mirroring amount but at bottom */
   pointer-events: none;
-  color: var(--hs-color-inventory-item-amount-fg, #fff);
+  display: inline-block;
+  padding: 0 .125rem;
+  border-radius: .25rem;
+  background-color: var(--hs-color-inventory-item-amount-bg);
+  color: var(--hs-color-inventory-item-amount-fg, #ff0);
+  text-transform: capitalize;
+  text-shadow: 0 0 1px rgba(0,0,0,0.7);
   z-index: 1;
 }

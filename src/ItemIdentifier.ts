@@ -37,6 +37,15 @@ export default class ItemIdentifier extends Plugin {
       },
     } as any;
 
+    this.settings.showWhere = {
+      text: "Show Where",
+      description: "Where overlays appear",
+      type: SettingsTypes.combobox as any,
+      options: ["Bank Only", "Bank+Bag(Gear Only)", "Bank+Bag(All)"],
+      value: "Bank+Bag(All)",
+      callback: () => this.rescanSoon(),
+    } as any;
+
     this.settings.showRoots = {
       text: "Roots",
       description: "Show Root tags",
@@ -310,7 +319,17 @@ export default class ItemIdentifier extends Plugin {
       const name = this.resolveItemName(item);
       if (!name) return this.removeBadge(cell);
 
-      const tag = this.deriveTag(name);
+      const mode: string = (this.settings as any).showWhere?.value || "Bank+Bag(All)";
+      const inInventory = !!cell.closest(".hs-item-table--inventory");
+      const inShop = !!cell.closest(".hs-item-table--shop");
+      if (mode === "Bank Only" && (inInventory || inShop)) {
+        return this.removeBadge(cell);
+      }
+      let allowed: Set<string> | undefined;
+      if (mode === "Bank+Bag(Gear Only)" && (inInventory || inShop)) {
+        allowed = new Set(["dark", "jewelry", "potion"]);
+      }
+      const tag = this.deriveTag(name, allowed);
       if (!tag) return this.removeBadge(cell);
 
       const host = this.getTagHost(cell);
@@ -389,11 +408,12 @@ export default class ItemIdentifier extends Plugin {
     return null;
   }
 
-  private deriveTag(name: string): string | null {
+  private deriveTag(name: string, allowed?: Set<string>): string | null {
     const n = name.trim();
 
     // 0) Dark items – exact name overrides
     if ((this as any).settings?.showDarkItems?.value) {
+      if (!(allowed && !allowed.has("dark"))) {
       const DARK: Record<string, string> = {
         "coronium chainmail body": "C Chain",
         "coronium chestplate": "C Plate",
@@ -412,6 +432,7 @@ export default class ItemIdentifier extends Plugin {
       };
       const hit = DARK[n.toLowerCase()];
       if (hit) return hit;
+      }
     }
 
     // Manual overrides by category
@@ -444,6 +465,7 @@ export default class ItemIdentifier extends Plugin {
     // 1) Potions: Potion of TYPE (N)
     const potionMatch = /^potion of\s+(.+?)\s*\((\d+)\)$/i.exec(n);
     if (potionMatch && this.settings.showPotions.value) {
+      if (allowed && !allowed.has("potion")) return null;
       const type = potionMatch[1].trim();
       const doses = potionMatch[2];
       const mapped = POTION_MAP[type.toLowerCase()] || applyManualFor('potion', type) || capitalize3(type);
@@ -453,6 +475,7 @@ export default class ItemIdentifier extends Plugin {
     // 2) Logs
     const logsMatch = /^(.*?)\s*logs$/i.exec(n);
     if (logsMatch && this.settings.showLogs.value) {
+      if (allowed && !allowed.has("logs")) return null;
       const prefix = logsMatch[1].trim();
       if (!prefix) return 'Norm';
       return applyManualFor('logs', prefix) || capitalize3(prefix);
@@ -461,6 +484,7 @@ export default class ItemIdentifier extends Plugin {
     // 3) Roots
     const rootMatch = /^(.*?)\s+root(s)?$/i.exec(n);
     if (rootMatch && this.settings.showRoots.value) {
+      if (allowed && !allowed.has("root")) return null;
       const prefix = rootMatch[1].trim();
       if (!prefix) return 'Norm';
       return applyManualFor('root', prefix) || capitalize3(prefix);
@@ -469,6 +493,7 @@ export default class ItemIdentifier extends Plugin {
     // 4) Scroll (singular)
     const scrollMatch = /^(.*?)\s*scroll$/i.exec(n);
     if (scrollMatch && this.settings.showScrolls.value) {
+      if (allowed && !allowed.has("scroll")) return null;
       const prefix = scrollMatch[1].trim();
       // Magical scrolls list (Fire, Water, etc.)
       if (SCROLL_MAGICAL[prefix.toLowerCase()]) {
@@ -484,6 +509,7 @@ export default class ItemIdentifier extends Plugin {
     if ((this as any).settings?.showBows?.value) {
       const bowMatch = /^(unstrung\s+)?(.+?)\s+bow$/i.exec(n);
       if (bowMatch) {
+        if (allowed && !allowed.has("bow")) return null;
         const isUnstrung = !!bowMatch[1];
         const type = bowMatch[2].trim();
         const base = applyManualFor('bow', type) || capitalize3(type);
@@ -493,6 +519,7 @@ export default class ItemIdentifier extends Plugin {
 
     // 5b) Ores
     if ((this as any).settings?.showOres?.value) {
+      if (allowed && !allowed.has("ore")) return null;
       if (/^coal$/i.test(n)) return 'Coal';
       const nugget = /^(silver|gold)\s+nugget$/i.exec(n);
       if (nugget) {
@@ -511,6 +538,7 @@ export default class ItemIdentifier extends Plugin {
 
     // 5c) Bars
     if ((this as any).settings?.showBars?.value) {
+      if (allowed && !allowed.has("bar")) return null;
       if (/^pig\s+iron\s+bar$/i.test(n)) return null; // excluded
       const barMatch = /^(.+?)\s+bar$/i.exec(n);
       if (barMatch) {
@@ -524,6 +552,7 @@ export default class ItemIdentifier extends Plugin {
 
     // 6) Jewelry
     if ((this as any).settings?.showJewelry?.value) {
+      if (allowed && !allowed.has("jewelry")) return null;
       // Monk's Necklace outlier
       if (/monk'?s\s+necklace$/i.test(n)) return 'Monk';
       const jewMatch = /^(silver|gold)\s+(.+?)\s+(necklace)$/i.exec(n);
@@ -538,6 +567,7 @@ export default class ItemIdentifier extends Plugin {
 
     // 7) Gems
     if ((this as any).settings?.showGems?.value) {
+      if (allowed && !allowed.has("gem")) return null;
       const rough = /^rough\s+(.+)$/i.exec(n);
       const justGem = /^(.+?)\s+gem$/i.exec(n); // Cut format provided as "GEMTYPE Gem"
       const m = rough || justGem;

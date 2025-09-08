@@ -2,7 +2,7 @@ import { Plugin, SettingsTypes } from "@highlite/core";
 import styles from "../resources/css/base.css";
 
 /**
- * ItemIdentifier Plugin
+ * ItemTags Plugin
  * --------------------------
  * Adds a small bottom-left "tag" overlay to inventory/bank/shop items for
  * categories Roots, Potions, Logs, Scrolls. Tags are derived from item names.
@@ -15,9 +15,9 @@ import styles from "../resources/css/base.css";
  * The tag is attached to the *same parent* as the amount badge when present
  * to avoid conflicts with plugins that reorder items.
  */
-export default class ItemIdentifier extends Plugin {
-  pluginName = "Item Identifier";
-  author = "Elliott";
+export default class ItemTags extends Plugin {
+  pluginName = "ItemTags";
+  author = "Ellz";
 
   private styleEl: HTMLStyleElement | null = null;
   private observer: MutationObserver | null = null;
@@ -37,9 +37,44 @@ export default class ItemIdentifier extends Plugin {
       },
     } as any;
 
+    this.settings.colorCheck = {
+        text: "Change Color?",
+        type: SettingsTypes.checkbox,
+        value: false,
+        callback: () => {
+            if (this.settings.colorCheck.value) {
+                this.settings.colorPick.hidden = false;
+            } else {
+                this.settings.colorPick.hidden = true;
+            }
+            // Re-apply tag colors when toggled
+            this.rescanSoon();
+        },
+        onLoaded: () => {
+            if (this.settings.colorCheck.value) {
+                this.settings.colorPick.hidden = false;
+            } else {
+                this.settings.colorPick.hidden = true;
+            }
+            // Ensure initial state applies to current badges
+            this.rescanSoon();
+        },
+    } as any;
+
+    this.settings.colorPick = {
+        text: "Tag Color",
+        type: SettingsTypes.color as any,
+        value: "#ffffff",
+        hidden: true,
+        // When the color changes, re-render to apply per-badge color
+        callback: () => this.rescanSoon(),
+        // On load, ensure any existing badges pick up the stored color
+        onLoaded: () => this.rescanSoon(),
+    } as any;
+
     this.settings.showWhere = {
       text: "Show Where",
-      description: "Where overlays appear",
+      description: "Gear Only includes Jewelry, Potions, and Dark Items",
       type: SettingsTypes.combobox as any,
       options: ["Bank Only", "Bank+Bag(Gear Only)", "Bank+Bag(All)"],
       value: "Bank+Bag(All)",
@@ -137,7 +172,7 @@ export default class ItemIdentifier extends Plugin {
   }
 
   init(): void {
-    this.log("ItemIdentifier initialised");
+    this.log("ItemTags initialised");
   }
 
   start() {
@@ -146,7 +181,7 @@ export default class ItemIdentifier extends Plugin {
       this.stop();
     }
     this.started = true;
-    this.log("ItemIdentifier starting");
+    this.log("ItemTags starting");
     this.injectStyle();
     this.attachGameHookSubscriptions();
     this.attachObserverFallback();
@@ -155,7 +190,7 @@ export default class ItemIdentifier extends Plugin {
 
   stop() {
     this.started = false;
-    this.log("ItemIdentifier stopping");
+    this.log("ItemTags stopping");
     // Detach subs
     for (const u of this.unsubscribers.splice(0)) {
       try { u(); } catch {}
@@ -355,6 +390,8 @@ export default class ItemIdentifier extends Plugin {
       }
       // Mirror amount typography so font size and face match without copying its position
       this.syncBadgeTypography(host, badge);
+      // Apply configured color for the tag text without affecting amount styling
+      this.applyTagColor(badge);
       const displayTag = this.formatTag(tag);
       if (badge.textContent !== displayTag) badge.textContent = displayTag;
     } catch (e) {
@@ -636,6 +673,29 @@ export default class ItemIdentifier extends Plugin {
           badge.style.letterSpacing = cs.letterSpacing || '';
           badge.style.textShadow = cs.textShadow || '';
         }
+      }
+    } catch {}
+  }
+
+  /**
+   * Apply a unique text color to the tag badge.
+   * - If settings.colorcheck.value is true, use settings.colorpick.value.
+   * - If false or unavailable, remove override so it falls back to the amount color.
+   * The color is applied via a custom CSS variable on the badge element only,
+   * so it will not affect the amount or other UI elements.
+   */
+  private applyTagColor(badge: HTMLElement) {
+    try {
+      const s = (this as any).settings || {};
+      const useCustom = !!(s.colorCheck?.value ?? s.colorcheck?.value);
+      const pick = s.colorPick?.value ?? s.colorpick?.value;
+
+      if (useCustom && pick) {
+        // Set per-badge var consumed by CSS: resources/css/base.css
+        badge.style.setProperty('--hs-item-identifier-tag-fg', String(pick));
+      } else {
+        // Remove override so it uses the amount color fallback
+        badge.style.removeProperty('--hs-item-identifier-tag-fg');
       }
     } catch {}
   }
